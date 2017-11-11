@@ -1,12 +1,23 @@
 #include "AM.h"
-
-//For clarity purposes
-#define 'I' INDEX
-#define 'D' DATA
+#include "bf.h"
+#include "defn.h"
+#include <stdio.h>
+#include <string.h>
 
 int AM_errno = AME_OK;
 
 void AM_Init() {
+    //make sure every global data structure is initialized empty
+    int i=0;
+    for (;i<20;i++) {
+        fileTable[i].fileName = NULL;
+        
+        scanTable[i].scanFile = -1;
+        scanTable[i].scanStartBlock = -1;
+        scanTable[i].scanStartOffset = -1;
+        scanTable[i].scanEndBlock = -1;
+        scanTable[i].scanEndOffset = -1;
+    }
 	return;
 }
 
@@ -14,7 +25,7 @@ void AM_Init() {
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
 
     int fileDesc;
-    Block *block;
+    BF_Block *block;
     fieldInfo field1, field2;                               //Storing attribute type and length in the struct fieldInfo. (fieldInfo Declaration is in AM.h)
     if(BF_CreateFile(fileName) == BF_OK){
 //        if(BF_OpenFile(filename,&fileDesc) == BF_OK) {
@@ -38,7 +49,15 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
 
 
 int AM_DestroyIndex(char *fileName) {
-  return AME_OK;
+    //check if file is open
+    int i=0;
+    for (;i<20;i++) {
+        if (strcmp(fileTable[i].fileName, fileName)==0) {
+        return 1; //file is open
+        }
+    }
+    remove(strcat("./",fileName)); //stdio.h function to remove file
+    return AME_OK;
 }
 
 
