@@ -15,16 +15,21 @@ extern int AM_errno;
 #define LESS_THAN_OR_EQUAL 5
 #define GREATER_THAN_OR_EQUAL 6
 
-typedef struct fileData { //data structure for file data
-  char* fileName; //needed for file delete
+typedef struct attributeInfo{
+    char attributeType;
+    int attributeLength;
+} fieldInfo;
+
+typedef struct fileData {                               //data structure for file data
+  char* fileName;                                       //needed for file delete
 } fileData;
 
 typedef struct scanData {
-  int scanFile; //the position of the file being scanned on the fileTable
-  int scanStartBlock; //the data block index of the first matching record
-  int scanStartOffset; //the data block offset (in bytes) of the first matching record
-  int scanEndBlock; //the data block index of the last matching record
-  int scanEndOffset; //the data block offset (in bytes) of the last matching record
+  int scanFile;                                         //the position of the file being scanned on the fileTable
+  int scanStartBlock;                                   //the data block index of the first matching record
+  int scanStartOffset;                                  //the data block offset (in bytes) of the first matching record
+  int scanEndBlock;                                     //the data block index of the last matching record
+  int scanEndOffset;                                    //the data block offset (in bytes) of the last matching record
 } scanData;
 
 fileData fileTable[20]; //file data table

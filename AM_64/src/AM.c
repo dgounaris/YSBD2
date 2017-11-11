@@ -1,5 +1,9 @@
 #include "AM.h"
 
+//For clarity purposes
+#define 'I' INDEX
+#define 'D' DATA
+
 int AM_errno = AME_OK;
 
 void AM_Init() {
@@ -7,12 +11,29 @@ void AM_Init() {
 }
 
 
-int AM_CreateIndex(char *fileName, 
-	               char attrType1, 
-	               int attrLength1, 
-	               char attrType2, 
-	               int attrLength2) {
-  return AME_OK;
+int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
+
+    int fileDesc;
+    Block *block;
+    fieldInfo field1, field2;                               //Storing attribute type and length in the struct fieldInfo. (fieldInfo Declaration is in AM.h)
+    if(BF_CreateFile(fileName) == BF_OK){
+//        if(BF_OpenFile(filename,&fileDesc) == BF_OK) {
+//            BF_Block_Init(&block);
+//            BF_AllocateBlock(fileDesc, block);
+//
+//        } else {
+//            BF_PrintError(BF_OpenFile(filename,&fileDesc));
+//            return BF_ERROR;
+//        }
+        field1.attributeType = attrType1;
+        field1.attributeLength = attrLength1;
+        field2.attributeType = attrType2;
+        field2.attributeLength = attrLength2;
+    } else {
+        BF_PrintError(BF_CreateFile(fileName));
+        return BF_ERROR;
+    }
+    return AME_OK;
 }
 
 
