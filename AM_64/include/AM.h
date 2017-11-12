@@ -15,12 +15,14 @@ extern int AM_errno;
 #define LESS_THAN_OR_EQUAL 5
 #define GREATER_THAN_OR_EQUAL 6
 
-typedef struct attributeInfo{
-    char attributeType;
-    int attributeLength;
-} fieldInfo;
+//Need to check if we need this.
+//typedef struct attributeInfo{
+//    char attributeType;
+//    int attributeLength;
+//} fieldInfo;
 
 typedef struct fileData {                               //data structure for file data
+  int fileIndex;                                        //Needed for file open.
   char* fileName;                                       //needed for file delete
 } fileData;
 

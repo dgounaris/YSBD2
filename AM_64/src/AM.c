@@ -11,6 +11,7 @@ void AM_Init() {
     int i=0;
     for (;i<20;i++) {
         fileTable[i].fileName = NULL;
+        fileTable[i].fileIndex = -1;
         
         scanTable[i].scanFile = -1;
         scanTable[i].scanStartBlock = -1;
@@ -26,20 +27,22 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
 
     int fileDesc;
     BF_Block *block;
-    fieldInfo field1, field2;                               //Storing attribute type and length in the struct fieldInfo. (fieldInfo Declaration is in AM.h)
     if(BF_CreateFile(fileName) == BF_OK){
-//        if(BF_OpenFile(filename,&fileDesc) == BF_OK) {
-//            BF_Block_Init(&block);
-//            BF_AllocateBlock(fileDesc, block);
-//
-//        } else {
-//            BF_PrintError(BF_OpenFile(filename,&fileDesc));
-//            return BF_ERROR;
-//        }
-        field1.attributeType = attrType1;
-        field1.attributeLength = attrLength1;
-        field2.attributeType = attrType2;
-        field2.attributeLength = attrLength2;
+        if(BF_OpenFile(fileName,&fileDesc) == BF_OK) {
+            BF_Block_Init(&block);
+            BF_AllocateBlock(fileDesc, block);
+            char *blockData = BF_Block_GetData(block);
+            memcpy(blockData,&attrType1, sizeof(char));                                                 //Writing attributes in the first block.
+            memcpy(blockData + sizeof(char),&attrLength1, sizeof(int));
+            memcpy(blockData + sizeof(char) + sizeof(int),&attrType2, sizeof(char));
+            memcpy(blockData + sizeof(char) + sizeof(int) + sizeof(char),&attrLength2, sizeof(int));
+            BF_Block_SetDirty(block);                                                               //Changed data, setting dirty, unpinning and freeing pointer to block.
+            BF_UnpinBlock(block);
+            BF_Block_Destroy(&block);
+        } else {
+            BF_PrintError(BF_OpenFile(fileName,&fileDesc));
+            return BF_ERROR;
+        }
     } else {
         BF_PrintError(BF_CreateFile(fileName));
         return BF_ERROR;
@@ -62,12 +65,33 @@ int AM_DestroyIndex(char *fileName) {
 
 
 int AM_OpenIndex (char *fileName) {
-  return AME_OK;
+    int fileDesc;
+    if(BF_OpenFile(fileName,&fileDesc)==BF_OK){                         //Opening File and checking if it has opened correctly.
+        for(int i=0; i<20; i++){                                        //For each record in the fileTable array, check if the fileIndex is unchanged (cont.)
+                                                                        //(which means there is no open file that's taking that spot.) If it is, make the index equal to i.
+            if(fileTable[i].fileIndex == -1){
+                fileTable[i].fileIndex = i;
+                return fileTable[i].fileIndex;
+            }
+        }
+    } else {
+        BF_PrintError(BF_OpenFile(fileName,&fileDesc));
+        return BF_ERROR;
+    }
 }
 
 
 int AM_CloseIndex (int fileDesc) {
-  return AME_OK;
+    if(BF_CloseFile(fileDesc) == BF_OK){                                //Closing File and checking if it has closed successfully.
+        for(int i=0; i<20; i++){                                        //For each record in the fileTable array, check if the fileIndex is equal to the fileDesc.
+                                                                        //If it is, reset the struct variables to the values they had during the struct's initialization.
+            if(fileTable[i].fileIndex == fileDesc){
+                fileTable[i].fileIndex = -1;
+                fileTable[i].fileName = NULL;
+            }
+        }
+    }
+    return AME_OK;
 }
 
 
