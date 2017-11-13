@@ -28,15 +28,21 @@ typedef struct fileData {                               //data structure for fil
 
 typedef struct scanData {
   int scanFile;                                         //the position of the file being scanned on the fileTable
-  int scanStartBlock;                                   //the data block index of the first matching record
-  int scanStartOffset;                                  //the data block offset (in bytes) of the first matching record
-  int scanEndBlock;                                     //the data block index of the last matching record
-  int scanEndOffset;                                    //the data block offset (in bytes) of the last matching record
+  int scanNextBlock;                                   //the data block index of the next matching record
+  int scanNextOffset;                                  //the data block offset (in bytes) of the next matching record
+  int size1, size2;                                    //the length (in bytes) of the data values
+  void* queryValue;                                      //used to find end cases
+  int opcode;                                          //used to find end cases
 } scanData;
 
 fileData fileTable[20]; //file data table
 
 scanData scanTable[20]; //scan data table
+
+//used to compare a delim value and the query value
+//returns true if we need to move down a level, false otherwise
+//args: the 2 values, the opcode and the data type
+bool scanOpCodeHelper(void* value1, void* value2, int op, char type);
 
 void AM_Init( void );
 
