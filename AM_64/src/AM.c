@@ -26,11 +26,24 @@ void AM_Init() {
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
 
     int fileDesc;
-    BF_Block *block;
+    BF_Block *block, *datablock0, *indexblock0;
     if(BF_CreateFile(fileName) == BF_OK){
         if(BF_OpenFile(fileName,&fileDesc) == BF_OK) {
             BF_Block_Init(&block);
             BF_AllocateBlock(fileDesc, block);
+            char data = 'd', index = 'i';
+
+            BF_Block_Init(&datablock0);
+            BF_AllocateBlock(fileDesc, datablock0);
+            char *initblockData = BF_Block_GetData(datablock0);
+            memcpy(initblockData, &data, sizeof(char));
+
+            BF_Block_Init(&indexblock0);
+            BF_AllocateBlock(fileDesc, indexblock0);
+            char *initblockIndexData = BF_Block_GetData(indexblock0);
+            memcpy(initblockData, &index, sizeof(char));
+
+
             char *blockData = BF_Block_GetData(block);
             memcpy(blockData,&attrType1, sizeof(char));                                                 //Writing attributes in the first block.
             memcpy(blockData + sizeof(char),&attrLength1, sizeof(int));
