@@ -251,10 +251,11 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
         return 10;
     }
     if (op==2 || op==3 || op==5) { //it will already be on first data block from the above loop
-        scanTable[i].scanscanNextBlock = currentBlock;
+        scanTable[i].scanNextBlock = currentBlock;
         scanTable[i].scanNextOffset = currentOffset;
         BF_UnpinBlock(curBlock);
-        return AME_OK;
+        //when exiting from here, currentOffset shows the first value in first block, which can be <, =, > to value
+        return i;
     }
     int tempOffset = currentOffset;
     int allBlockEntries;
@@ -282,15 +283,11 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     //-the first entry with value1>value, either in same or next data block
     scanTable[i].scanNextBlock = currentBlock;
     scanTable[i].scanNextOffset = currentOffset;
-    return AME_OK;
+    return i;
 }
 
 bool scanOpCodeHelper(void* value1, void* value2, char type) {
     //returns true when it finds a greater value as delimiter than the one we search for
-    //TODO -- NOT READY
-    //Function may not always want to return true when it finds greater value
-    //I.e. when <=, we want to start from first data block UP TO the one containing our number
-    //Need to discuss implementation for this
     switch(type) {
         case 'c':
             if (strcmp(value1, value2) < 0) {
