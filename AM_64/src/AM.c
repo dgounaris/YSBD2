@@ -261,7 +261,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     while(true) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
         if (scanOpCodeHelper(value, bData+currentOffset, type1)) {
-            if ((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)<=allBlockEntries) {}
+            if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) {
                 currentOffset += size1 + size2; //move to next entry
             }
             else { //no more entries in this block, means the value we store is the first of the next block
