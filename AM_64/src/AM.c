@@ -196,8 +196,6 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
             memcpy(&size1, bData + sizeof(char), sizeof(int));
             memcpy(&type2, bData + sizeof(char) + sizeof(int), sizeof(char));
             memcpy(&size2, bData + sizeof(char) + sizeof(int) + sizeof(char), sizeof(int));
-            scanTable[i].size1 = size1;
-            scanTable[i].size2 = size2;
             scanTable[i].queryValue = value;
             scanTable[i].opcode = op;
             BF_UnpinBlock(curBlock);
@@ -261,21 +259,21 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     while(true) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
-        if (scanOpCodeHelper(value, bData+currentOffset, type1)) {
-            if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) {
+        if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
+            if (scanOpCodeHelper(value, bData+currentOffset, type1)) {
                 currentOffset += size1 + size2; //move to next entry
             }
-            else { //no more entries in this block, means the value we store is the first of the next block
-                int nextBlock;
-                memcpy(&nextBlock, BF_BLOCK_SIZE-sizeof(int), sizeof(int));
-                //no need to get data, we only need the block values
-                currentBlock = nextBlock;
-                currentOffset = sizeof(char) + sizeof(int);
-                //REMINDER: IF ON LAST DATA BLOCK, WRITE THE NEXTBLOCK VARIABLE SPACE WITH -1, AND CHECK FROM FINDNEXTENTRY FOR THIS
-                break;
-            }
+            else break;
         }
-        else break;
+        else { //no more entries in this block, means the value we store is the first of the next block
+            int nextBlock;
+            memcpy(&nextBlock, BF_BLOCK_SIZE-sizeof(int), sizeof(int));
+            //no need to get data, we only need the block values
+            currentBlock = nextBlock;
+            currentOffset = sizeof(char) + sizeof(int);
+            //REMINDER: IF ON LAST DATA BLOCK, WRITE THE NEXTBLOCK VARIABLE SPACE WITH -1, AND CHECK FROM FINDNEXTENTRY FOR THIS
+            break;
+        }
     }
     BF_UnpinBlock(curBlock);
     //when exiting, currentOffset has one of the following values:
@@ -314,7 +312,103 @@ bool scanOpCodeHelper(void* value1, void* value2, char type) {
 
 
 void *AM_FindNextEntry(int scanDesc) {
-	
+    BF_Block* curBlock; //block being parsed
+    BF_Block_Init(&curBlock);
+    char type1, type2; //type of value1 and value2 of selected file respectively
+    int size1, size2; //sizes of value1 and value2 of selected file respectively
+    char* bData;
+	if (BF_GetBlock(scanTable[scanDesc].scanFile, 0, curBlock)!=BF_OK) { //get file info from block 0
+        return -1;
+    }
+    bData = BF_Block_GetData(curBlock);
+    memcpy(&type1, bData, sizeof(char)); 
+    memcpy(&size1, bData + sizeof(char), sizeof(int));
+    memcpy(&type2, bData + sizeof(char) + sizeof(int), sizeof(char));
+    memcpy(&size2, bData + sizeof(char) + sizeof(int) + sizeof(char), sizeof(int));
+    //get block parsed for next result
+    BF_UnpinBlock(curBlock);
+    if (BF_GetBlock(scanTable[scanDesc].scanFile, scanTable[scanDesc].scanNextBlock, curBlock)!=BF_OK) {
+        return -1;
+    }
+    bData = BF_Block_GetData(curBlock);
+    int allBlockEntries;
+    memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
+    //check if we are in end of block data
+    if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)>allBlockEntries) {
+        int nextBlock;
+        memcpy(&nextBlock, BF_BLOCK_SIZE-sizeof(int), sizeof(int));
+        scanTable[scanDesc].scanNextBlock = nextBlock;
+        scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int);
+        //fixing scantable data before check
+    }
+    //check for EOF
+    if (scanTable[scanDesc].scanNextBlock==-1) {
+        AM_errno = AME_EOF;
+        return NULL;
+    }
+    if (scanTable[scanDesc].opcode==1) { //=
+        //as explained in openScanFile, the offset is initialized as first equal or a bigger element
+        //we only need to check if we reached a bigger element
+        if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
+            AM_errno = AME_EOF;
+            return NULL;
+        }
+        else {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return scanTable[scanDesc].scanNextOffset - size2;
+        }
+    }
+    if (scanTable[scanDesc].opcode==2) { //!=
+        //similar to the >, we print all elements and recurse through the equals
+        if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1) || scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return scanTable[scanDesc].scanNextOffset - size2;
+        }
+        else {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return AM_FindNextEntry(scanDesc); //pray to god this works...
+        }
+    }
+    else if (scanTable[scanDesc].opcode==3) { //<
+        if (scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
+            scanTable[scanDesc].scanNextOffset += size1 + size2; //dont have to check for end of block, this is done when entering
+            return scanTable[scanDesc].scanNextOffset - size2;
+        }
+        else {
+            AM_errno = AME_EOF;
+            return NULL;
+        }
+    }
+    else if (scanTable[scanDesc].opcode==4) { //>
+        //the scan opened has either equal or > elements to queryvalue (stated in openScanFile)
+        //this makes this request a trivial loop until we pass through the equals to get a greater value
+        //meaning, we can also do it recursively, since scanData table is static in memory and not badly affected from recursions
+        if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return scanTable[scanDesc].scanNextOffset - size2;
+        }
+        else {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return AM_FindNextEntry(scanDesc); //pray to god this works...
+        }
+    }
+    else if (scanTable[scanDesc].opcode==5) { //<=, this is a reverse >
+        if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
+            AM_errno = AME_EOF;
+            return NULL;
+        }
+        else {
+            scanTable[scanDesc].scanNextOffset += size1 + size2;
+            return scanTable[scanDesc].scanNextOffset - size2;
+        }
+    }
+    else if (scanTable[scanDesc].opcode==6) { //>=
+        //the scan opened has either equal or > elements to queryvalue (stated in openScanFile)
+        //eof is tested above
+        //all cases are correct
+        scanTable[scanDesc].scanNextOffset += size1 + size2;
+        return scanTable[scanDesc].scanNextOffset - size2;
+    }
 }
 
 
