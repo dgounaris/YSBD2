@@ -43,6 +43,10 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             char *initblockIndexData = BF_Block_GetData(indexblock0);
             memcpy(initblockIndexData, &index, sizeof(char));
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+            memcpy(initblockIndexData + sizeof(char), &curBlockSize, sizeof(int));                      //Incremental value for records in block
+>>>>>>> 6a900f380e3edd12d32f81cf8c61ef205721e8fd
 =======
             memcpy(initblockIndexData + sizeof(char), &curBlockSize, sizeof(int));                      //Incremental value for records in block
 >>>>>>> 6a900f380e3edd12d32f81cf8c61ef205721e8fd
@@ -289,8 +293,11 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
 
 bool scanOpCodeHelper(void* value1, void* value2, char type) {
 <<<<<<< HEAD
+<<<<<<< HEAD
     //returns true when it finds a greater value as delimiter than the one we search for
 =======
+=======
+>>>>>>> 6a900f380e3edd12d32f81cf8c61ef205721e8fd
     //TODO -- NOT READY
     //Function may not always want to return true when it finds greater value
     //I.e. when <=, we want to start from first data block UP TO the one containing our number
