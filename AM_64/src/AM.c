@@ -2,6 +2,7 @@
 #include "bf.h"
 #include "defn.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Blocks in the B+ tree are either index blocks or data blocks.
@@ -180,9 +181,9 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                              //Store the current number of records in the block in the maxRecords variable.
                 for(int j=0; j<maxRecords;j++) {                                                                        //For each record in the block...
                     sizeOfSortValueToPass += sizeof(char) + sizeof(int) + (j+1)*sizeof(int);                            //Check Index Block Definition
-                    void sortValue;
-                    memcpy(&sortValue, indexData + sizeOfSortValueToPass, sizeof(varType1));                            //SortValue could be and int,char or float, so just void.
-                    if(scanOpCodeHelper(value1, &sortvalue, type1)){                                                    //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
+                    void *sortValue;
+                    memcpy(sortValue, indexData + sizeOfSortValueToPass, sizeof(varType1));                            //SortValue could be and int,char or float, so just void.
+                    if(scanOpCodeHelper(value1, sortValue, type1)){                                                    //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
                         //Moving down a level, making indexData equal to the new block's index data.
                         int lowerLevelFileDesc;
                         memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int), sizeof(int));                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
@@ -193,7 +194,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     }
                     else{
                         //Move to next sort value.
-                        sizeOfSortValueToPass += sizeof(varType);
+                        sizeOfSortValueToPass += sizeof(varType1);
                     }
                 }
             }
@@ -202,7 +203,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 int curRecords;
                 memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
                 int currentBlockSize = sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2);
-                if((currentBlockSize + sizeof(varType1) + sizeof(varTyp2)) <= 512){
+                if((currentBlockSize + sizeof(varType1) + sizeof(varType2)) <= 512){
                     memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2),value1,sizeof(varType1));
                     memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2) +
                                    sizeof(varType1),value2,sizeof(varType2));
@@ -217,7 +218,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     char data='d';
                     char *initblockData = BF_Block_GetData(block);
                     memcpy(initblockData, &data, sizeof(char));
-                    counter = 0;
+                    int counter = 0;
                     for(int k=curRecords/2; k<curRecords;k++){
                         char *dataToBeCopied;
                         memcpy(dataToBeCopied,indexData + sizeof(char) + sizeof(int) + k*sizeof(varType1) + k*sizeof(varType2),
@@ -252,7 +253,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     for (;i<20;i++) {
         if (scanTable[i].scanFile == -1) {
             scanTablePos = i;
-            scanTable.scanFile = fileDesc;
+            scanTable[i].scanFile = fileDesc;
             if (BF_GetBlock(fileDesc, 0, curBlock)!=BF_OK) { //get file info from block 0
                 return -1;
             }
@@ -323,7 +324,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     int tempOffset = currentOffset;
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
-    while(true) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
+    while(1) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
         if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
             if (scanOpCodeHelper(value, bData+currentOffset, type1)) {
                 currentOffset += size1 + size2; //move to next entry
@@ -332,7 +333,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
         }
         else { //no more entries in this block, means the value we store is the first of the next block
             int nextBlock;
-            memcpy(&nextBlock, BF_BLOCK_SIZE-sizeof(int), sizeof(int));
+            memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
             //no need to get data, we only need the block values
             currentBlock = nextBlock;
             currentOffset = sizeof(char) + sizeof(int);
@@ -349,30 +350,31 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     return i;
 }
 
-bool scanOpCodeHelper(void* value1, void* value2, char type) {
+int scanOpCodeHelper(void* value1, void* value2, char type) {
     //returns true when it finds a greater value as delimiter than the one we search for
+    void *delimValue;
     switch(type) {
         case 'c':
             if (strcmp(value1, value2) < 0) {
-                return true;
+                return 1;
             }
             break;
         case 'i':
-            int delimValue;
-            memcpy(&delimValue, value2, sizeof(int));
-            if (*value < delimValue) {
-                return true;
+            delimValue = malloc(sizeof(int));
+            memcpy(delimValue, value2, sizeof(int));
+            if ( *(int*)value1 < *(int*)delimValue) {
+                return 1;
             }
             break;
         case 'f':
-            float delimValue;
-            memcpy(&delimValue, value2, sizeof(float));
-            if (*value < delimValue) {
-                return true;
+            delimValue = malloc(sizeof(float));
+            memcpy(delimValue, value2, sizeof(float));
+            if ( *(float*)value1 < *(float*)delimValue) {
+                return 1;
             }
             break;
     }
-    return false;
+    return 0;
 }
 
 
@@ -383,7 +385,8 @@ void *AM_FindNextEntry(int scanDesc) {
     int size1, size2; //sizes of value1 and value2 of selected file respectively
     char* bData;
 	if (BF_GetBlock(scanTable[scanDesc].scanFile, 0, curBlock)!=BF_OK) { //get file info from block 0
-        return -1;
+        AM_PrintError(NULL);
+        return NULL;
     }
     bData = BF_Block_GetData(curBlock);
     memcpy(&type1, bData, sizeof(char)); 
@@ -393,15 +396,16 @@ void *AM_FindNextEntry(int scanDesc) {
     //get block parsed for next result
     BF_UnpinBlock(curBlock);
     if (BF_GetBlock(scanTable[scanDesc].scanFile, scanTable[scanDesc].scanNextBlock, curBlock)!=BF_OK) {
-        return -1;
+        AM_PrintError(NULL);
+        return NULL;
     }
     bData = BF_Block_GetData(curBlock);
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     //check if we are in end of block data
-    if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)>allBlockEntries) {
+    if (((scanTable[scanDesc].scanNextOffset - sizeof(char) - sizeof(int))/(size1+size2)+1)>allBlockEntries) {
         int nextBlock;
-        memcpy(&nextBlock, BF_BLOCK_SIZE-sizeof(int), sizeof(int));
+        memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
         scanTable[scanDesc].scanNextBlock = nextBlock;
         scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int);
         //fixing scantable data before check
@@ -420,14 +424,14 @@ void *AM_FindNextEntry(int scanDesc) {
         }
         else {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
-            return scanTable[scanDesc].scanNextOffset - size2;
+            return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
     }
     if (scanTable[scanDesc].opcode==2) { //!=
         //similar to the >, we print all elements and recurse through the equals
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1) || scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
-            return scanTable[scanDesc].scanNextOffset - size2;
+            return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
         else {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
@@ -437,7 +441,7 @@ void *AM_FindNextEntry(int scanDesc) {
     else if (scanTable[scanDesc].opcode==3) { //<
         if (scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
             scanTable[scanDesc].scanNextOffset += size1 + size2; //dont have to check for end of block, this is done when entering
-            return scanTable[scanDesc].scanNextOffset - size2;
+            return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
         else {
             AM_errno = AME_EOF;
@@ -450,7 +454,7 @@ void *AM_FindNextEntry(int scanDesc) {
         //meaning, we can also do it recursively, since scanData table is static in memory and not badly affected from recursions
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
-            return scanTable[scanDesc].scanNextOffset - size2;
+            return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
         else {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
@@ -464,7 +468,7 @@ void *AM_FindNextEntry(int scanDesc) {
         }
         else {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
-            return scanTable[scanDesc].scanNextOffset - size2;
+            return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
     }
     else if (scanTable[scanDesc].opcode==6) { //>=
@@ -472,7 +476,7 @@ void *AM_FindNextEntry(int scanDesc) {
         //eof is tested above
         //all cases are correct
         scanTable[scanDesc].scanNextOffset += size1 + size2;
-        return scanTable[scanDesc].scanNextOffset - size2;
+        return bData + scanTable[scanDesc].scanNextOffset - size2;
     }
 }
 

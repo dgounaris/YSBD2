@@ -41,7 +41,7 @@ scanData scanTable[20]; //scan data table
 //used to compare a delim value and the query value
 //returns true if we need to move down a level, false otherwise
 //args: the 2 values, the opcode and the data type
-bool scanOpCodeHelper(void* value1, void* value2, char type);
+int scanOpCodeHelper(void* value1, void* value2, char type);
 
 void AM_Init( void );
 
