@@ -4,6 +4,20 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Blocks in the B+ tree are either index blocks or data blocks.
+ *
+ * Index Blocks:
+ * *--------------------------*---------------------------------*----------------------------------*-----------------*
+ * | Character - ('i' or 'd') | Integer - Current Block Counter | Integer - Pointer to lower level | Void* SortValue |
+ * *--------------------------*---------------------------------*----------------------------------*-----------------*
+ *
+ * Data Blocks:
+ * *--------------------------*---------------------------------*-----------------*--------------*
+ * | Character - ('i' or 'd') | Integer - Current Block Counter | Void * - Value1 | Void* Value2 |
+ * *--------------------------*---------------------------------*-----------------*--------------*
+ *
+ * */
+
 int AM_errno = AME_OK;
 
 void AM_Init() {
@@ -126,50 +140,52 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             char *indexData = BF_Block_GetData(curBlock);
             currentBlock = 0;                                                           //The block with the type definition and length is block #0.
 
-            char *typeData = BF_Block_GetData(curBlock);
+            char *typeData = BF_Block_GetData(curBlock);                                //Getting Type and Size of the Key-Value pair.
             memcpy(&type1, typeData, sizeof(char));
             memcpy(&size1, typeData + sizeof(char), sizeof(int));
             memcpy(&type2, typeData + sizeof(char) + sizeof(int), sizeof(char));
             memcpy(&size2, typeData + sizeof(char) + sizeof(int) + sizeof(char), sizeof(int));
 
             /* Really temporary solution, TBD */
+            void *varType1,*varType2;
             switch(type1){
                 case 'c':
-                    char varType1;
+                    varType1 = malloc(sizeof(char));
                     break;
                 case 'i':
-                    int varType1;
+                    varType1 = malloc(sizeof(int));
                     break;
                 case 'f':
-                    float varType1;
+                    varType1 = malloc(sizeof(float));
                     break;
             }
 
             switch(type2){
                 case 'c':
-                    char varType2;
+                    varType2 = malloc(sizeof(char));
                     break;
                 case 'i':
-                    int varType2;
+                    varType2 = malloc(sizeof(int));
                     break;
                 case 'f':
-                    float varType2;
+                    varType2 = malloc(sizeof(float));
                     break;
             }
-            /*End of temporary solution*/
 
-            while (indexData[0]=='i'){
+            /*End of temporary solution*/
+            //TRAVERSING TREE.
+            while (indexData[0]=='i'){                                                                                  //While the block is an index...
                 int maxRecords;
                 int sizeOfSortValueToPass = 0;
-                memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));
-                for(int j=0; j<maxRecords;j++) {
-                    sizeOfSortValueToPass += sizeof(char) + sizeof(int) + (j+1)*sizeof(int); //Check Index Block Definition
+                memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                              //Store the current number of records in the block in the maxRecords variable.
+                for(int j=0; j<maxRecords;j++) {                                                                        //For each record in the block...
+                    sizeOfSortValueToPass += sizeof(char) + sizeof(int) + (j+1)*sizeof(int);                            //Check Index Block Definition
                     void sortValue;
-                    memcpy(&sortValue, indexData + sizeOfSortValueToPass, sizeof(varType));
-                    if(scanOpCodeHelper(value1, &sortvalue, type1)){
+                    memcpy(&sortValue, indexData + sizeOfSortValueToPass, sizeof(varType1));                            //SortValue could be and int,char or float, so just void.
+                    if(scanOpCodeHelper(value1, &sortvalue, type1)){                                                    //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
                         //Moving down a level, making indexData equal to the new block's index data.
                         int lowerLevelFileDesc;
-                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int), sizeof(int));
+                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int), sizeof(int));                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                         if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
                             return -1;
                         }
@@ -181,7 +197,8 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     }
                 }
             }
-            if(indexData[0]=='d'){                          //No more index blocks, only data blocks.
+            //INSERTING DATA TO NEW BLOCK.
+            if(indexData[0]=='d'){                                                                                      //No more index blocks, only data blocks.
                 int curRecords;
                 memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
                 int currentBlockSize = sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2);
