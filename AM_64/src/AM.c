@@ -125,9 +125,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             }
             char *indexData = BF_Block_GetData(curBlock);
             currentBlock = 0;                                                           //The block with the type definition and length is block #0.
-            if (BF_GetBlock(fileDesc, currentBlock, curBlock)!=BF_OK) {
-                return -1;
-            }
+
             char *typeData = BF_Block_GetData(curBlock);
             memcpy(&type1, typeData, sizeof(char));
             memcpy(&size1, typeData + sizeof(char), sizeof(int));
@@ -137,13 +135,25 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             /* Really temporary solution, TBD */
             switch(type1){
                 case 'c':
-                    char varType;
+                    char varType1;
                     break;
                 case 'i':
-                    int varType;
+                    int varType1;
                     break;
                 case 'f':
-                    float varType;
+                    float varType1;
+                    break;
+            }
+
+            switch(type2){
+                case 'c':
+                    char varType2;
+                    break;
+                case 'i':
+                    int varType2;
+                    break;
+                case 'f':
+                    float varType2;
                     break;
             }
             /*End of temporary solution*/
@@ -157,12 +167,50 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     void sortValue;
                     memcpy(&sortValue, indexData + sizeOfSortValueToPass, sizeof(varType));
                     if(scanOpCodeHelper(value1, &sortvalue, type1)){
-                        //TODO - Move down a level.
+                        //Moving down a level, making indexData equal to the new block's index data.
+                        int lowerLevelFileDesc;
+                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int), sizeof(int));
+                        if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
+                            return -1;
+                        }
+                        indexData = BF_Block_GetData(curBlock);
                     }
                     else{
                         //Move to next sort value.
                         sizeOfSortValueToPass += sizeof(varType);
                     }
+                }
+            }
+            if(indexData[0]=='d'){                          //No more index blocks, only data blocks.
+                int curRecords;
+                memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
+                int currentBlockSize = sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2);
+                if((currentBlockSize + sizeof(varType1) + sizeof(varTyp2)) <= 512){
+                    memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2),value1,sizeof(varType1));
+                    memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2) +
+                                   sizeof(varType1),value2,sizeof(varType2));
+                    curRecords++;
+                    memcpy(indexData + sizeof(char),&curRecords, sizeof(int));
+                }
+                else {
+                    //TODO - Split Block
+                    BF_Block* block;
+                    BF_Block_Init(&block);
+                    BF_AllocateBlock(fileDesc, block);
+                    char data='d';
+                    char *initblockData = BF_Block_GetData(block);
+                    memcpy(initblockData, &data, sizeof(char));
+                    counter = 0;
+                    for(int k=curRecords/2; k<curRecords;k++){
+                        char *dataToBeCopied;
+                        memcpy(dataToBeCopied,indexData + sizeof(char) + sizeof(int) + k*sizeof(varType1) + k*sizeof(varType2),
+                               sizeof(varType1) + sizeof(varType2));
+                        //TODO - DELETE RECORDS FROM OLD BLOCK
+                        memcpy(initblockData + sizeof(char) + sizeof(int) + counter*sizeof(varType1) + counter*sizeof(varType2),dataToBeCopied,sizeof(varType1) + sizeof(varType2));
+                        counter++;
+                    }
+                    char* firstKeyOfNewBlock = malloc(sizeof(varType1));
+                    memcpy(firstKeyOfNewBlock,initblockData + sizeof(char) + sizeof(int), sizeof(varType1));
                 }
             }
         }
@@ -413,14 +461,18 @@ void *AM_FindNextEntry(int scanDesc) {
 
 
 int AM_CloseIndexScan(int scanDesc) {
-  return AME_OK;
+    scanTable[scanDesc].scanFile = -1;
+    scanTable[scanDesc].scanNextBlock = -1;
+    scanTable[scanDesc].scanNextOffset = -1;
+    return AME_OK;
 }
 
 
 void AM_PrintError(char *errString) {
-  
+    printf("Error: %s\n", errString);
+    printf("Error Number: %d\n", AM_errno);
 }
 
 void AM_Close() {
-  
+
 }
