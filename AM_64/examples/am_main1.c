@@ -81,12 +81,13 @@ int main() {
 	/********************************************************************************
 	 *  Δημιουργία ΒΔ που θα περιέχουν πληροφορίες για υπαλλήλους                   *
 	 ********************************************************************************/
-
+	printf("Entered AM_CreateIndex\n");
 	if (AM_CreateIndex(empName, STRING, sizeof(empName) - 1, INTEGER,
 			sizeof(int)) != AME_OK) {
 		sprintf(errStr, "Error in AM_CreateIndex called on %s \n", empName);
 		AM_PrintError(errStr);
 	}
+	printf("Exited AM_CreateIndex\n");
 
 	if (AM_CreateIndex(empAge, INTEGER, sizeof(int), STRING, 39) != AME_OK) {
 		sprintf(errStr, "Error in AM_CreateIndex called on %s \n", empAge);

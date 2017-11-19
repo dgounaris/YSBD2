@@ -1,6 +1,11 @@
 am_main1:
 	@echo " Compile am_main1 ...";
 	gcc -I ./include/ -L ./lib/ -Wl,-rpath,./lib/ ./examples/am_main1.c ./src/AM.c -lbf -o ./build/am_main1
+	find -name EMP-AGE -print0 | xargs -0 -I file mv file ./last_EMP-AGE.db
+	find -name EMP-NAME -print0 | xargs -0 -I file mv file ./last_EMP-NAME.db
+	find -name EMP-DNAME -print0 | xargs -0 -I file mv file ./last_EMP-DNAME.db
+	find -name EMP-FAULT -print0 | xargs -0 -I file mv file ./last_EMP-FAULT.db
+	find -name EMP-SAL -print0 | xargs -0 -I file mv file ./last_EMP-SAL.db
 
 am_main2:
 	@echo " Compile am_main2 ...";

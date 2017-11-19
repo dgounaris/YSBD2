@@ -24,6 +24,7 @@ int AM_errno = AME_OK;
 void AM_Init() {
     //make sure every global data structure is initialized empty
     int i=0;
+    BF_Init(MRU);
     for (;i<20;i++) {
         fileTable[i].fileName = NULL;
         fileTable[i].fileIndex = -1;
@@ -37,21 +38,34 @@ void AM_Init() {
 
 
 int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrType2, int attrLength2) {
-
     int fileDesc;
     BF_Block *block, *datablock0, *indexblock0;
+
+    if(attrType1 == 'c' && attrLength1 > sizeof(char))
+        return -1;
+    else if(attrType1 == 'f' && attrLength1 > sizeof(float))
+        return -1;
+    else if(attrType1 == 'i' && attrLength1 > sizeof(int))
+        return -1;
+
     if(BF_CreateFile(fileName) == BF_OK){
+        //printf("In BF_CREATE\n");
         if(BF_OpenFile(fileName,&fileDesc) == BF_OK) {
+            //printf("In BF_OPEN\n");
             BF_Block_Init(&block);
+            //printf("BEFORE, FILENAME = %s | FILEDESC = %d\n" , fileName, fileDesc);
             BF_AllocateBlock(fileDesc, block);
+            //printf("AFTER ALLOCATE\n");
             char data = 'd', index = 'i';
             int curBlockSize = 0;
+            //printf("INITIALIZED BLOCK1\n");
 
             BF_Block_Init(&datablock0);
             BF_AllocateBlock(fileDesc, datablock0);
             char *initblockData = BF_Block_GetData(datablock0);
             memcpy(initblockData, &data, sizeof(char));
             memcpy(initblockData + sizeof(char), &curBlockSize, sizeof(int));                           //Incremental value for records in block
+            //printf("INITIALIZED BLOCK2\n");
 
             BF_Block_Init(&indexblock0);
             BF_AllocateBlock(fileDesc, indexblock0);
@@ -59,6 +73,7 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             memcpy(initblockIndexData, &index, sizeof(char));
             memcpy(initblockIndexData + sizeof(char), &curBlockSize, sizeof(int));                      //Incremental value for records in block
             memcpy(initblockIndexData + sizeof(char), &curBlockSize, sizeof(int));                      //Incremental value for records in block
+            //printf("INITIALIZED BLOCK3\n");
 
 
             char *blockData = BF_Block_GetData(block);
@@ -69,6 +84,7 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             BF_Block_SetDirty(block);                                                               //Changed data, setting dirty, unpinning and freeing pointer to block.
             BF_UnpinBlock(block);
             BF_Block_Destroy(&block);
+            //printf("DESTROYED\n");
         } else {
             BF_PrintError(BF_OpenFile(fileName,&fileDesc));
             return BF_ERROR;
@@ -98,8 +114,7 @@ int AM_OpenIndex (char *fileName) {
     int fileDesc;
     if(BF_OpenFile(fileName,&fileDesc)==BF_OK){                         //Opening File and checking if it has opened correctly.
         for(int i=0; i<20; i++){                                        //For each record in the fileTable array, check if the fileIndex is unchanged (cont.)
-                                                                        //(which means there is no open file that's taking that spot.) If it is, make the index equal to i.
-            if(fileTable[i].fileIndex == -1){
+            if(fileTable[i].fileIndex == -1){                           //(which means there is no open file that's taking that spot.) If it is, make the index equal to i.
                 fileTable[i].fileIndex = i;
                 fileTable[i].fileName = fileName;
                 return fileTable[i].fileIndex;
@@ -179,12 +194,36 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 int maxRecords;
                 int sizeOfSortValueToPass = 0;
                 memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                              //Store the current number of records in the block in the maxRecords variable.
+
+                //New part - TBD (18-11)
+                if(maxRecords == 0){
+                    BF_Block* curBlock;
+                    BF_Block_Init(&curBlock);
+                    int currentBlock = 1;
+                    if (BF_GetBlock(fileDesc, currentBlock, curBlock)!=BF_OK) {
+                        return -1;
+                    }
+                    int curRecords;
+                    memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
+                    int currentBlockSize = sizeof(char) + sizeof(int) + curRecords* sizeof(varType1) + curRecords* sizeof(varType2);
+                    if((currentBlockSize + sizeof(varType1) + sizeof(varType2)) <= 512) {
+                        memcpy(indexData + sizeof(char) + sizeof(int) + curRecords * sizeof(varType1) + curRecords * sizeof(varType2), value1, sizeof(varType1));
+                        memcpy(indexData + sizeof(char) + sizeof(int) + curRecords * sizeof(varType1) + curRecords * sizeof(varType2) +
+                               sizeof(varType1), value2, sizeof(varType2));
+                        curRecords++;
+                        memcpy(indexData + sizeof(char), &curRecords, sizeof(int));
+                    }
+                    printf("INDEX DATA: %s\n", indexData);
+                }
+                //End of new part
+
                 for(int j=0; j<maxRecords;j++) {                                                                        //For each record in the block...
                     sizeOfSortValueToPass += sizeof(char) + sizeof(int) + (j+1)*sizeof(int);                            //Check Index Block Definition
                     void *sortValue;
                     memcpy(sortValue, indexData + sizeOfSortValueToPass, sizeof(varType1));                            //SortValue could be and int,char or float, so just void.
                     if(scanOpCodeHelper(value1, sortValue, type1)){                                                    //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
                         //Moving down a level, making indexData equal to the new block's index data.
+                        printf("moving down\n");
                         int lowerLevelFileDesc;
                         memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int), sizeof(int));                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                         if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
