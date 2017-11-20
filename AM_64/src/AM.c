@@ -41,9 +41,7 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
     int fileDesc;
     BF_Block *block, *datablock0, *indexblock0;
 
-    if(attrType1 == 'c' && attrLength1 > sizeof(char))
-        return -1;
-    else if(attrType1 == 'f' && attrLength1 > sizeof(float))
+    if(attrType1 == 'f' && attrLength1 > sizeof(float))
         return -1;
     else if(attrType1 == 'i' && attrLength1 > sizeof(int))
         return -1;
