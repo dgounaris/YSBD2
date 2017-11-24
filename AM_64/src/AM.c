@@ -60,6 +60,8 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             int curBlockSize = 0;
             int firstDataBlock = 1;
             int nextDataBlock = -1;
+            //Value for identifying father block. Change Scan.
+            int previousBlock = 2;
             //printf("INITIALIZED BLOCK1\n");
 
             BF_Block_Init(&datablock0);
@@ -67,6 +69,8 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             char *initblockData = BF_Block_GetData(datablock0);
             memcpy(initblockData, &data, sizeof(char));
             memcpy(initblockData + sizeof(char), &curBlockSize, sizeof(int));                           //Incremental value for records in block
+            //Value for identifying father block. Change Scan.
+            memcpy(initblockData + sizeof(char) + sizeof(int), &previousBlock, sizeof(int));
             memcpy(initblockData + BF_BLOCK_SIZE - sizeof(int), &nextDataBlock, sizeof(int));
             //printf("INITIALIZED BLOCK2\n");
 
@@ -75,7 +79,9 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             char *initblockIndexData = BF_Block_GetData(indexblock0);
             memcpy(initblockIndexData, &index, sizeof(char));
             memcpy(initblockIndexData + sizeof(char), &curBlockSize, sizeof(int));                      //Incremental value for records in block
-            memcpy(initblockIndexData + sizeof(char) + sizeof(int), &firstDataBlock, sizeof(int));
+            int rootHasNoFather = -1;
+            memcpy(initblockIndexData + sizeof(char) + sizeof(int), &rootHasNoFather, sizeof(int));
+            memcpy(initblockIndexData + sizeof(char) + sizeof(int) + sizeof(int), &firstDataBlock, sizeof(int));
             //printf("INITIALIZED BLOCK3\n");
 
 
@@ -99,7 +105,6 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
     return AME_OK;
 }
 
-
 int AM_DestroyIndex(char *fileName) {
     //check if file is open
     int i=0;
@@ -111,7 +116,6 @@ int AM_DestroyIndex(char *fileName) {
     remove(strcat("./",fileName)); //stdio.h function to remove file
     return AME_OK;
 }
-
 
 int AM_OpenIndex (char *fileName) {
     int fileDesc;
@@ -178,7 +182,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 int j;
 
                 for(j=0;j<maxRecords;j++) { //maxrecords counts the delimiters in index block                                                                         //For each record in the block...
-                    sizeOfSortValueToPass = sizeof(char) + sizeof(int) + (2*j+1)*sizeof(int);                           //Check Index Block Definition
+                    sizeOfSortValueToPass = sizeof(char) + sizeof(int) + (2*j+1)*sizeof(int);//changed from j+1 to j+2                           //Check Index Block Definition
                     void *sortValue;
                     memcpy(sortValue, indexData + sizeOfSortValueToPass, size1);                             //SortValue could be and int,char or float, so just void.
                     //printf("SortValue: %s\n", (char*)sortValue);
@@ -187,7 +191,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                         //Moving down a level, making indexData equal to the new block's index data.
                         //printf("moving down\n");
                         int lowerLevelFileDesc;
-                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int) + (2*j) * sizeof(int), sizeof(int));                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
+                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int) + sizeof(int) + (2*j) * sizeof(int), sizeof(int));           //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                         if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
                             return -1;
                         }
@@ -200,7 +204,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     //Moving down a level, making indexData equal to the new block's index data.
                     printf("moving down\n");
                     int lowerLevelFileDesc;
-                    memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int) + (2*j) * sizeof(int), sizeof(int));                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
+                    memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + sizeof(int) + sizeof(int) + (2*j) * sizeof(int), sizeof(int));//changed from j to j+1                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                     //printf("%d |||| %d\n",  sizeof(char) + sizeof(int) + (2*j) * sizeof(int), lowerLevelFileDesc);
                     //printf("%c%d%d\n", indexData[0], indexData[1], indexData[5]);
                     if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
@@ -217,43 +221,85 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
                 //printf("In data, record %d\n", curRecords);
                 //printf("Total R %d\n", curRecords);
-                int currentBlockSize = sizeof(char) + sizeof(int) + curRecords* size1 + curRecords* size2 + sizeof(int);
+                int currentBlockSize = sizeof(char) + 2*sizeof(int) + curRecords* size1 + curRecords* size2 + sizeof(int);
                 if((currentBlockSize + size1 + size2) <= BF_BLOCK_SIZE){
-                    memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* size1 + curRecords* size2,value1,size1);
-                    memcpy(indexData + sizeof(char) + sizeof(int) + curRecords* size1 + curRecords* size2 +
-                                   size1,value2,size2);
+                    memcpy(indexData + sizeof(char) + 2*sizeof(int) + curRecords* size1 + curRecords* size2,value1,size1);
+                    memcpy(indexData + sizeof(char) + 2*sizeof(int) + curRecords* size1 + curRecords* size2 + size1,value2,size2);
                     curRecords++;
                     memcpy(indexData + sizeof(char),&curRecords, sizeof(int));
                     //need to sort the block, probably here
                 }
                 else {
                     //printf("overflow\n");
-                    int offset = sizeof(char) + sizeof(int);
-                    int entrynum = 1;
-                    /*//TODO - Split Block
-                    BF_Block* block;
-                    BF_Block_Init(&block);
-                    BF_AllocateBlock(fileDesc, block);
-                    char data='d';
-                    char *initblockData = BF_Block_GetData(block);
-                    memcpy(initblockData, &data, sizeof(char));
-                    int counter = 0;
-                    for(int k=curRecords/2; k<curRecords;k++){
-                        char *dataToBeCopied;
-                        memcpy(dataToBeCopied,indexData + sizeof(char) + sizeof(int) + k*sizeof(varType1) + k*sizeof(varType2),
-                               sizeof(varType1) + sizeof(varType2));
-                        //TODO - DELETE RECORDS FROM OLD BLOCK
-                        memcpy(initblockData + sizeof(char) + sizeof(int) + counter*sizeof(varType1) + counter*sizeof(varType2),dataToBeCopied,sizeof(varType1) + sizeof(varType2));
-                        counter++;
-                    }
-                    char* firstKeyOfNewBlock = malloc(sizeof(varType1));
-                    memcpy(firstKeyOfNewBlock,initblockData + sizeof(char) + sizeof(int), sizeof(varType1));*/
+                    SplitBlock(value1, value2, indexData,fileDesc,size1,size2);
+                    //TODO - Split Block
                 }
                 return AME_OK;
             }
         }
     }
     return AME_OK;
+}
+
+int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int size1, int size2){
+    BF_Block* newBlock;
+    BF_Block_Init(&newBlock);
+    BF_AllocateBlock(fileDesc, newBlock);
+    if(blockData[0] == 'd'){
+        char data = 'd';
+        char *newBlockData = BF_Block_GetData(newBlock);
+        //Initializing new block.
+        memcpy(newBlockData,&data, sizeof(char));
+        memcpy(newBlockData + sizeof(char),&curRecords, sizeof(int));
+        int blockDataFather,oldBlockNumOfRecords;
+        memcpy(&blockDataFather,blockData + sizeof(char) + sizeof(int), sizeof(int));                                       //Get the father of the old block.
+        memcpy(&oldBlockNumOfRecords, blockData + sizeof(char), sizeof(int));
+        memcpy(newBlockData+ sizeof(char) + sizeof(int)+ sizeof(int),&blockDataFather, sizeof(int));                        //New block has same father (for now) as old block.
+
+
+        //Copying half of the values of the old block in the new block..
+        int j=0;
+        for(int i=oldBlockNumOfRecords/2; i<oldBlockNumOfRecords; i++){
+            memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + j*size1 + j*size2, blockData + sizeof(char) + 2*sizeof(int) + i*size1 + i*size2 , size1);
+            memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + (j+1)*size1 + j*size2, blockData + sizeof(char) + 2*sizeof(int) + (i+1)*size1 + i*size2 , size2);
+            j++;
+            //Todo - delete old records.
+        }
+
+
+        //Inserting the values in the new block.
+        memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + j* size1 + j* size2,value1,size1);
+        memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + j* size1 + j* size2 + size1,value2,size2);
+        j++;
+        memcpy(newBlockData + sizeof(char),&curRecords, sizeof(int));
+
+
+        //Passing first value of new block to father.
+        void *newvalue;
+        memcpy(newvalue,newBlockData + sizeof(char) + 2* sizeof(int), size1);
+        BF_Block* fatherBlock;
+        BF_Block_Init(&fatherBlock);
+        if (BF_GetBlock(fileDesc, blockDataFather, fatherBlock)!=BF_OK) {
+            return -1;
+        }
+        char* fatherData = BF_Block_GetData(fatherData);                                                                        //Gets father Data to pass to Split.
+        SplitBlock(newvalue,0,fatherData,fileDesc,size1,0);                                                                     //Calls SplitBlock with the father block data and the key value.
+
+    }
+    else if (blockData[0] == 'i') {
+        int curRecords;
+        memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
+        int currentBlockSize = sizeof(char) + sizeof(int) + curRecords*sizeof(int) + curRecords*size1;                      //Calculating current block size through the current records in the block.
+        if(currentBlockSize + sizeof(int) + sizeof(value1) <= 512){                                                         //If the block size after the key-sortvalue pair insertion is less than or equal to 512, then insert it
+            memcpy(blockData + sizeof(char) + sizeof(int) + sizeof(int) + curRecords * size1 + curRecords * sizeof(int));   //Insert the key-value pair at the end of the block.
+            //Todo - Gonna call Sort function with index block as parameter.
+        }
+        else{
+            int blockDataFather,oldBlockNumOfRecords;
+            memcpy(&blockDataFather,blockData + sizeof(char) + sizeof(int), sizeof(int));                                       //Get the father of the old block.
+            //Create a new Index Block with half key-value pairs??? Or new index block with just this pair???
+        }
+    }
 }
 
 
@@ -295,7 +341,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     }
     //we need to store current block to pass its value in scan struct later
     int currentBlock = 2; //master index block is block 2 (check createindex)
-    int currentOffset = sizeof(char) + sizeof(int); //go past the index/data indicator and the total values
+    int currentOffset = sizeof(char) + sizeof(int) + sizeof(int); //go past the index/data/father indicator and the total values
     if (BF_GetBlock(fileDesc, currentBlock, curBlock)!=BF_OK) {
         return -1;
     }
@@ -307,7 +353,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     */
     printf("%d %d %hhx %d\n", fileDesc, currentBlock, bData[0], bData[1]);
     int valuesSearched=0;
-    //TODO INCONSISTEND BLOCK LOADS?!?!!?!?!?!?!?!!
+    //TODO INCONSISTENT BLOCK LOADS?!?!!?!?!?!?!?!!
     //could be due to no unpinning when returning result from findnextindex!
     //printf("%d %d %c %d %d\n",i, currentBlock, bData[0], bData[1], bData[5]);
     //finds first element with the value given, or the last with lower value if no elements with that value
@@ -326,7 +372,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
                 return -1;
             }
             bData = BF_Block_GetData(curBlock);
-            currentOffset = sizeof(char) + sizeof(int);
+            currentOffset = sizeof(char) + sizeof(int) + sizeof(int); //Changed to work with father.
             currentBlock = nextBlock;
             valuesSearched=0;
         }
@@ -353,7 +399,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     while(1) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
-        if (((currentOffset-sizeof(char)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
+        if (((currentOffset-sizeof(char)-sizeof(int)- sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
             if (scanOpCodeHelper(bData+currentOffset, value, type1)) {
                 currentOffset += size1 + size2; //move to next entry if current is less than the searched
             }
@@ -364,7 +410,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
             memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
             //no need to get data, we only need the block values
             currentBlock = nextBlock;
-            currentOffset = sizeof(char) + sizeof(int);
+            currentOffset = sizeof(char) + sizeof(int) + sizeof(int);
             //REMINDER: IF ON LAST DATA BLOCK, WRITE THE NEXTBLOCK VARIABLE SPACE WITH -1, AND CHECK FROM FINDNEXTENTRY FOR THIS
             break;
         }
@@ -438,7 +484,7 @@ void *AM_FindNextEntry(int scanDesc) {
         int nextBlock;
         memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
         scanTable[scanDesc].scanNextBlock = nextBlock;
-        scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int);
+        scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int) + sizeof(int); //updated for father.
         //fixing scantable data and recursing for next block
         AM_FindNextEntry(scanDesc);
     }
