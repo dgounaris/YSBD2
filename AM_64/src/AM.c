@@ -285,6 +285,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
             memcpy(&size2, bData + sizeof(char) + sizeof(int) + sizeof(char), sizeof(int));
             scanTable[i].queryValue = value;
             scanTable[i].opcode = op;
+            printf("%c %d %c %d\n", type1, size1, type2, size2);
             BF_UnpinBlock(curBlock);
             break;
         }
@@ -304,6 +305,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
         {index/data byte|int with # of delimValues|int to lower level block|sizeof(value1) sorting value|int to lower level block|etc...}
         In index loop we move forward one int, check the value and repeat until we have to move down a level
     */
+    printf("%d %d %hhx %d\n", fileDesc, currentBlock, bData[0], bData[1]);
     int valuesSearched=0;
     //TODO INCONSISTEND BLOCK LOADS?!?!!?!?!?!?!?!!
     //could be due to no unpinning when returning result from findnextindex!
@@ -432,11 +434,13 @@ void *AM_FindNextEntry(int scanDesc) {
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     //check if we are in end of current block data
     if (((scanTable[scanDesc].scanNextOffset - sizeof(char) - sizeof(int))/(size1+size2)+1)>allBlockEntries) {
+        BF_UnpinBlock(curBlock);
         int nextBlock;
         memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
         scanTable[scanDesc].scanNextBlock = nextBlock;
         scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int);
-        //fixing scantable data before check
+        //fixing scantable data and recursing for next block
+        AM_FindNextEntry(scanDesc);
     }
     //check for EOF
     if (scanTable[scanDesc].scanNextBlock==-1) {
@@ -448,6 +452,7 @@ void *AM_FindNextEntry(int scanDesc) {
         //we only need to check if we reached a bigger element
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
             AM_errno = AME_EOF;
+            BF_UnpinBlock(curBlock);
             return NULL;
         }
         else {
@@ -473,6 +478,7 @@ void *AM_FindNextEntry(int scanDesc) {
         }
         else {
             AM_errno = AME_EOF;
+            BF_UnpinBlock(curBlock);
             return NULL;
         }
     }
@@ -492,6 +498,7 @@ void *AM_FindNextEntry(int scanDesc) {
     else if (scanTable[scanDesc].opcode==5) { //<=, this is a reverse >
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
             AM_errno = AME_EOF;
+            BF_UnpinBlock(curBlock);
             return NULL;
         }
         else {
