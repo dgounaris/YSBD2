@@ -231,7 +231,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 }
                 else {
                     //printf("overflow\n");
-                    SplitBlock(value1, value2, indexData,fileDesc,size1,size2);
+                    SplitBlock(value1, value2, indexData,fileDesc,size1,size2,type1);
                     //TODO - Split Block
                 }
                 return AME_OK;
@@ -241,7 +241,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
     return AME_OK;
 }
 
-int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int size1, int size2){
+int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int size1, int size2, char type1){
     BF_Block* newBlock;
     BF_Block_Init(&newBlock);
     BF_AllocateBlock(fileDesc, newBlock);
@@ -263,9 +263,9 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
             memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + j*size1 + j*size2, blockData + sizeof(char) + 2*sizeof(int) + i*size1 + i*size2 , size1);
             memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + (j+1)*size1 + j*size2, blockData + sizeof(char) + 2*sizeof(int) + (i+1)*size1 + i*size2 , size2);
             j++;
-            //Todo - delete old records.
+            //Not deleting old records, but setting the new number of records to the old divided by 2.
         }
-
+        memcpy(blockData + sizeof(char), &oldBlockNumOfRecords/2, sizeof(int));
 
         //Inserting the values in the new block.
         memcpy(newBlockData + sizeof(char) + 2*sizeof(int) + j* size1 + j* size2,value1,size1);
@@ -292,6 +292,7 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
         int currentBlockSize = sizeof(char) + sizeof(int) + curRecords*sizeof(int) + curRecords*size1;                      //Calculating current block size through the current records in the block.
         if(currentBlockSize + sizeof(int) + sizeof(value1) <= 512){                                                         //If the block size after the key-sortvalue pair insertion is less than or equal to 512, then insert it
             memcpy(blockData + sizeof(char) + sizeof(int) + sizeof(int) + curRecords * size1 + curRecords * sizeof(int));   //Insert the key-value pair at the end of the block.
+            Sort(blockData,size1,type1);
             //Todo - Gonna call Sort function with index block as parameter.
         }
         else{
@@ -300,6 +301,37 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
             //Create a new Index Block with half key-value pairs??? Or new index block with just this pair???
         }
     }
+}
+
+//Function used to sort the block.
+int SortBlock(char *blockData, int size1,char type1){
+    int intToLowerLevel1, intToLowerLevel2;
+    void *sortValue1, *sortValue2;
+    int curRecords;
+    memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
+    //Basically BubbleSort
+    if(blockData[0]=='i'){
+        for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
+            memcpy(&intToLowerLevel1,blockData + sizeof(char) + 2*sizeof(int) + j* sizeof(int) + j*size1, sizeof(int));
+            memcpy(sortValue1,blockData + sizeof(char) + 2*sizeof(int) + (j+1)* sizeof(int) + j*size1, size1);
+            for(int k=j; k<curRecords-1;k++){
+                memcpy(&intToLowerLevel2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)* sizeof(int) + (k+1)*size1, sizeof(int));
+                memcpy(sortValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+2)* sizeof(int) + (k+1)*size1, size1);
+                if(scanOpCodeHelper(sortValue1,sortValue2,type1)){
+                    int tempInt = intToLowerLevel1;
+                    void *tempSortValue = sortValue1;
+                    //Overwriting new minimum over old minimum
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j* sizeof(int) + j*size1, intToLowerLevel1, sizeof(int));
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (j+1)* sizeof(int) + j*size1,sortValue1, size1);
+                    //Overwriting old minimum over new minimum's place.
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)* sizeof(int) + (k+1)*size1,tempInt, sizeof(int));
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+2)* sizeof(int) + (k+1)*size1,tempSortValue, size1);
+                }
+            }
+        }
+    }
+    //Might add sort for data block if needed.
+    return 1;
 }
 
 
