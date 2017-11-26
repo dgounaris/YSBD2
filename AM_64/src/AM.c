@@ -431,7 +431,7 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     while(1) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
-        if (((currentOffset-sizeof(char)-sizeof(int)- sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
+        if (((currentOffset-sizeof(char)-sizeof(int)- sizeof(int)-sizeof(int))/(size1+size2)+1)<=allBlockEntries) { //the entry we are going to see is a valid entry
             if (scanOpCodeHelper(bData+currentOffset, value, type1)) {
                 currentOffset += size1 + size2; //move to next entry if current is less than the searched
             }
@@ -511,7 +511,7 @@ void *AM_FindNextEntry(int scanDesc) {
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     //check if we are in end of current block data
-    if (((scanTable[scanDesc].scanNextOffset - sizeof(char) - sizeof(int))/(size1+size2)+1)>allBlockEntries) {
+    if (((scanTable[scanDesc].scanNextOffset - sizeof(char) - sizeof(int)- sizeof(int))/(size1+size2)+1)>allBlockEntries) {
         BF_UnpinBlock(curBlock);
         int nextBlock;
         memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
