@@ -49,20 +49,15 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
         return -1;
 
     if(BF_CreateFile(fileName) == BF_OK){
-        //printf("In BF_CREATE\n");
         if(BF_OpenFile(fileName,&fileDesc) == BF_OK) {
-            //printf("In BF_OPEN\n");
             BF_Block_Init(&block);
-            //printf("BEFORE, FILENAME = %s | FILEDESC = %d\n" , fileName, fileDesc);
             BF_AllocateBlock(fileDesc, block);
-            //printf("AFTER ALLOCATE\n");
             char data = 'd', index = 'i';
             int curBlockSize = 0;
             int firstDataBlock = 1;
             int nextDataBlock = -1;
             //Value for identifying father block. Change Scan.
             int previousBlock = 2;
-            //printf("INITIALIZED BLOCK1\n");
 
             BF_Block_Init(&datablock0);
             BF_AllocateBlock(fileDesc, datablock0);
@@ -72,7 +67,6 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             //Value for identifying father block. Change Scan.
             memcpy(initblockData + sizeof(char) + sizeof(int), &previousBlock, sizeof(int));
             memcpy(initblockData + BF_BLOCK_SIZE - sizeof(int), &nextDataBlock, sizeof(int));
-            //printf("INITIALIZED BLOCK2\n");
 
             BF_Block_Init(&indexblock0);
             BF_AllocateBlock(fileDesc, indexblock0);
@@ -82,8 +76,6 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             int rootHasNoFather = -1;
             memcpy(initblockIndexData + sizeof(char) + sizeof(int), &rootHasNoFather, sizeof(int));
             memcpy(initblockIndexData + sizeof(char) + sizeof(int) + sizeof(int), &firstDataBlock, sizeof(int));
-            //printf("INITIALIZED BLOCK3\n");
-
 
             char *blockData = BF_Block_GetData(block);
             memcpy(blockData,&attrType1, sizeof(char));                                                 //Writing attributes in the first block.
@@ -93,7 +85,6 @@ int AM_CreateIndex(char *fileName, char attrType1, int attrLength1, char attrTyp
             BF_Block_SetDirty(block);                                                               //Changed data, setting dirty, unpinning and freeing pointer to block.
             BF_UnpinBlock(block);
             BF_Block_Destroy(&block);
-            //printf("DESTROYED\n");
         } else {
             BF_PrintError(BF_OpenFile(fileName,&fileDesc));
             return BF_ERROR;
@@ -277,10 +268,13 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     curRecords++;
                     memcpy(indexData + sizeof(char),&curRecords, sizeof(int));
                     //need to sort the block, probably here
+                    SortBlock(indexData, size1, type1, size2);
+                    BF_Block_SetDirty(curBlock);
+                    BF_UnpinBlock(curBlock);
                 }
                 else {
                     //printf("overflow\n");
-                    SplitBlock(value1, value2, indexData,fileDesc,size1,size2,type1);
+                    //SplitBlock(value1, value2, indexData,fileDesc,size1,size2,type1);
                     //TODO - Split Block
                 }
                 return AME_OK;
@@ -355,7 +349,7 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
             curRecords++;
             printf("curRecords %d\n", curRecords);
             memcpy(blockData + sizeof(char),&curRecords, sizeof(int));
-            SortBlock(blockData,size1,type1);
+            SortBlock(blockData,size1,type1,size2);
             //Todo - Gonna call Sort function with index block as parameter.
         }
         else{
@@ -369,9 +363,12 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
 }
 
 //Function used to sort the block.
-int SortBlock(char *blockData, int size1,char type1){
+int SortBlock(char *blockData, int size1,char type1, int size2){
     int intToLowerLevel1, intToLowerLevel2;
-    void *sortValue1, *sortValue2;
+    void *sortValue1=malloc(size1);
+    void *sortValue2=malloc(size1);
+    void *suppValue1=malloc(size2);
+    void *suppValue2=malloc(size2);
     int curRecords;
     memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
     //Basically BubbleSort
@@ -382,9 +379,10 @@ int SortBlock(char *blockData, int size1,char type1){
             for(int k=j; k<curRecords-1;k++){
                 memcpy(&intToLowerLevel2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)* sizeof(int) + (k+1)*size1, sizeof(int));
                 memcpy(sortValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+2)* sizeof(int) + (k+1)*size1, size1);
-                if(scanOpCodeHelper(sortValue1,sortValue2,type1)){
+                if(scanOpCodeHelper(sortValue2,sortValue1,type1)){
                     int tempInt = intToLowerLevel1;
-                    void *tempSortValue = sortValue1;
+                    void *tempSortValue;
+                    memcpy(tempSortValue, sortValue1, size1);
                     //Overwriting new minimum over old minimum
                     memcpy(blockData + sizeof(char) + 2*sizeof(int) + j* sizeof(int) + j*size1, &intToLowerLevel1, sizeof(int));
                     memcpy(blockData + sizeof(char) + 2*sizeof(int) + (j+1)* sizeof(int) + j*size1,sortValue1, size1);
@@ -395,10 +393,31 @@ int SortBlock(char *blockData, int size1,char type1){
             }
         }
     }
+    if(blockData[0]=='d') {
+        for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
+            memcpy(suppValue1,blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2) + size1, size2);
+            memcpy(sortValue1,blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2), size1);
+            for(int k=j; k<curRecords-1;k++){
+                memcpy(suppValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2) + size1, size2);
+                memcpy(sortValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2), size1);
+                if(scanOpCodeHelper(sortValue2,sortValue1,type1)){
+                    void* tempV2=malloc(size2);
+                    void* tempV1=malloc(size1);
+                    memcpy(tempV2, suppValue1, size2);
+                    memcpy(tempV1, sortValue1, size1);
+                    //Overwriting new minimum over old minimum
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2) + size1, suppValue2, size2);
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2),sortValue2, size1);
+                    //Overwriting old minimum over new minimum's place.
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2) + size1,tempV2, size2);
+                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2),tempV1, size1);
+                }
+            }
+        }
+    }
     //Might add sort for data block if needed.
     return 1;
 }
-
 
 int AM_OpenIndexScan(int fileDesc, int op, void *value) {
     printf("SCAN\n");
@@ -523,7 +542,8 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
 }
 
 int scanOpCodeHelper(void* value1, void* value2, char type) {
-    //returns true when it finds a greater value as delimiter than the one we search for
+    //returns true when it finds a greater value as delimiter than the one we search for\
+    //aka value1 < value2
     void *delimValue;
     switch(type) {
         case 'c':
@@ -557,7 +577,6 @@ void *AM_FindNextEntry(int scanDesc) {
     int size1, size2; //sizes of value1 and value2 of selected file respectively
     char* bData;
 	if (BF_GetBlock(scanTable[scanDesc].scanFile, 0, curBlock)!=BF_OK) { //get file info from block 0
-        AM_PrintError(NULL);
         return NULL;
     }
     bData = BF_Block_GetData(curBlock);
@@ -569,7 +588,6 @@ void *AM_FindNextEntry(int scanDesc) {
     BF_UnpinBlock(curBlock);
     //scanNextBlock could be -1, meaning no more entries
     if (BF_GetBlock(scanTable[scanDesc].scanFile, scanTable[scanDesc].scanNextBlock, curBlock)!=BF_OK) {
-        AM_PrintError(NULL);
         return NULL;
     }
     bData = BF_Block_GetData(curBlock);

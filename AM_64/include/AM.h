@@ -78,7 +78,7 @@ int AM_InsertEntry(
 
 int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int size1, int size2, char type1);
 
-int SortBlock(char *blockData, int size1,char type1);
+int SortBlock(char *blockData, int size1,char type1, int size2);
 
 int AM_OpenIndexScan(
   int fileDesc, /* αριθμός που αντιστοιχεί στο ανοιχτό αρχείο */
