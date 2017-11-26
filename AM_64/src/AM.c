@@ -363,59 +363,36 @@ int SplitBlock(void *value1, void *value2, char* blockData,int fileDesc, int siz
 }
 
 //Function used to sort the block.
-int SortBlock(char *blockData, int size1,char type1, int size2){
-    int intToLowerLevel1, intToLowerLevel2;
+//CHANGE IN IMPLEMENTATION: blockData is expected to be the pointer to first ACTUAL DATA of the block
+//the curRecords is passed as parameter to enable the above
+int SortBlock(char *blockData, int size1,char type1, int size2, int curRecords){
     void *sortValue1=malloc(size1);
     void *sortValue2=malloc(size1);
     void *suppValue1=malloc(size2);
     void *suppValue2=malloc(size2);
-    int curRecords;
-    memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
     //Basically BubbleSort
-    if(blockData[0]=='i'){
-        for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
-            memcpy(&intToLowerLevel1,blockData + sizeof(char) + 2*sizeof(int) + j* sizeof(int) + j*size1, sizeof(int));
-            memcpy(sortValue1,blockData + sizeof(char) + 2*sizeof(int) + (j+1)* sizeof(int) + j*size1, size1);
-            for(int k=j; k<curRecords-1;k++){
-                memcpy(&intToLowerLevel2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)* sizeof(int) + (k+1)*size1, sizeof(int));
-                memcpy(sortValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+2)* sizeof(int) + (k+1)*size1, size1);
-                if(scanOpCodeHelper(sortValue2,sortValue1,type1)){
-                    int tempInt = intToLowerLevel1;
-                    void *tempSortValue;
-                    memcpy(tempSortValue, sortValue1, size1);
-                    //Overwriting new minimum over old minimum
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j* sizeof(int) + j*size1, &intToLowerLevel1, sizeof(int));
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (j+1)* sizeof(int) + j*size1,sortValue1, size1);
-                    //Overwriting old minimum over new minimum's place.
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)* sizeof(int) + (k+1)*size1,&tempInt, sizeof(int));
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+2)* sizeof(int) + (k+1)*size1,tempSortValue, size1);
-                }
+    //keep in mind that when splitting, the smallest values are always the leftmost
+    //no need for different algorithms for index and data, only need to ignore the pointer to first block pointer in index blocks
+    for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
+        memcpy(suppValue1,blockData + j*(size1+size2) + size1, size2);
+        memcpy(sortValue1,blockData + j*(size1+size2), size1);
+        for(int k=j; k<curRecords-1;k++){
+            memcpy(suppValue2,blockData + (k+1)*(size1+size2) + size1, size2);
+            memcpy(sortValue2,blockData + (k+1)*(size1+size2), size1);
+            if(scanOpCodeHelper(sortValue2,sortValue1,type1)){
+                void* tempV2=malloc(size2);
+                void* tempV1=malloc(size1);
+                memcpy(tempV2, suppValue1, size2);
+                memcpy(tempV1, sortValue1, size1);
+                //Overwriting new minimum over old minimum
+                memcpy(blockData + j*(size1+size2) + size1, suppValue2, size2);
+                memcpy(blockData + j*(size1+size2),sortValue2, size1);
+                //Overwriting old minimum over new minimum's place.
+                memcpy(blockData + (k+1)*(size1+size2) + size1,tempV2, size2);
+                memcpy(blockData + (k+1)*(size1+size2),tempV1, size1);
             }
         }
     }
-    if(blockData[0]=='d') {
-        for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
-            memcpy(suppValue1,blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2) + size1, size2);
-            memcpy(sortValue1,blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2), size1);
-            for(int k=j; k<curRecords-1;k++){
-                memcpy(suppValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2) + size1, size2);
-                memcpy(sortValue2,blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2), size1);
-                if(scanOpCodeHelper(sortValue2,sortValue1,type1)){
-                    void* tempV2=malloc(size2);
-                    void* tempV1=malloc(size1);
-                    memcpy(tempV2, suppValue1, size2);
-                    memcpy(tempV1, sortValue1, size1);
-                    //Overwriting new minimum over old minimum
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2) + size1, suppValue2, size2);
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + j*(size1+size2),sortValue2, size1);
-                    //Overwriting old minimum over new minimum's place.
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2) + size1,tempV2, size2);
-                    memcpy(blockData + sizeof(char) + 2*sizeof(int) + (k+1)*(size1+size2),tempV1, size1);
-                }
-            }
-        }
-    }
-    //Might add sort for data block if needed.
     return 1;
 }
 
