@@ -221,7 +221,6 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             while (indexData[0]=='i'){                                                                                  //While the block is an index...
                 int sizeOfSortValueToPass = 0;
                 memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                              //Store the current number of records in the block in the maxRecords variable.
-                printf("MR %d\n", maxRecords);   
                 int j;
 
                 for(j=0;j<maxRecords;j++) { //maxrecords counts the delimiters in index block                                                                         //For each record in the block...
@@ -688,13 +687,11 @@ void *AM_FindNextEntry(int scanDesc) {
     }
     else if (scanTable[scanDesc].opcode==5) { //<=, this is a reverse >
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
-            printf("inend\n");
             AM_errno = AME_EOF;
             BF_UnpinBlock(curBlock);
             return NULL;
         }
         else {
-            printf("inok\n");
             scanTable[scanDesc].scanNextOffset += size1 + size2;
             return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
