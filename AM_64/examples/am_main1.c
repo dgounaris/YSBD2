@@ -1066,7 +1066,7 @@ int main() {
 		sprintf(errStr, "Error in AM_CloseIndex called on %s \n", empDname);
 		AM_PrintError(errStr);
 	}
-
+    return 0;
 	/********************************************************************************
 	 *      Επερώτηση #1                                                            *
 	 *  Έυρεση της εγγραφής "KOKKINOS ARISTOTELHS", γνωρίζοντας ότι το όνομα είναι  *
