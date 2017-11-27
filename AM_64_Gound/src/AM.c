@@ -222,7 +222,6 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                 return -1;
             }
             char *indexData = BF_Block_GetData(curBlock);
-
             //TRAVERSING TREE.
             int maxRecords;
             while (indexData[0]=='i'){                                                                                  //While the block is an index...
@@ -242,6 +241,7 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                         int lowerLevelFileDesc;
                         memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + 2*sizeof(int) + j*(sizeof(int)+size1), sizeof(int));           //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                         printf("%d\n", lowerLevelFileDesc);
+                        BF_UnpinBlock(curBlock);
                         if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
                             return -1;
                         }
