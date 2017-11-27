@@ -157,7 +157,6 @@ int AM_CloseIndex (int fileDesc) {
                 }
                 char *blockData = BF_Block_GetData(block);
                 if(blockData[0]=='i'){
-                    printf("Block Records: %d | Block Father: %d | Block Number: %d |\n", blockData[1],blockData[5],j);
                     int curRecords;
                     memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
                     for(int k=0;k<curRecords;k++){
@@ -165,18 +164,15 @@ int AM_CloseIndex (int fileDesc) {
                         void *value = malloc(size1);
                         memcpy(&inttollevel,blockData + sizeof(char) + 2* sizeof(int) + k* sizeof(int) + k* size1, sizeof(int));
                         memcpy(value,blockData + sizeof(char) + 2* sizeof(int) + (k+1)* sizeof(int) + k* size1, size1);
-                        printf("Block int to lower level: %d | Block Sort Value: %s |\n", inttollevel, (char*)value);
                     }
                 }
                 else if(blockData[0]=='d'){
-                    printf("Block Records: %d | Block Father: %d | Block Number: %d\n", blockData[1],blockData[5],j);
                     int curRecords;
                     memcpy(&curRecords,blockData + sizeof(char), sizeof(int));
                     for(int k=0;k<curRecords;k++){
                         void *value1 = malloc(size1),*value2 = malloc(size2);
                         memcpy(value1,blockData + sizeof(char) + 2* sizeof(int) + k* size1 + k* size2, size1);
                         memcpy(value2,blockData + sizeof(char) + 2* sizeof(int) + (k+1)* size1 + k* size2, size2);
-                        printf("Block Value1: %s | Block Value2: %d |\n", (char*)value1, *(int*)value2);
                     }
                 }
             }
@@ -224,23 +220,19 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             char *indexData = BF_Block_GetData(curBlock);
             //TRAVERSING TREE.
             int maxRecords;
-            while (indexData[0]=='i'){                                                                                  //While the block is an index...
+            while (indexData[0]=='i'){                                                                                                                              //While the block is an index...
                 int sizeOfSortValueToPass = 0;
-                memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                              //Store the current number of records in the block in the maxRecords variable.
+                memcpy(&maxRecords,indexData + sizeof(char), sizeof(int));                                                                                          //Store the current number of records in the block in the maxRecords variable.
                 int j;
 
-                for(j=0;j<maxRecords;j++) { //maxrecords counts the delimiters in index block                                                                         //For each record in the block...
-                    sizeOfSortValueToPass = sizeof(char) + 2*sizeof(int) + (j+1)*sizeof(int) + j*size1;//changed from j+1 to j+2                           //Check Index Block Definition
+                for(j=0;j<maxRecords;j++) { //maxrecords counts the delimiters in index block                                                                       //For each record in the block...
+                    sizeOfSortValueToPass = sizeof(char) + 2*sizeof(int) + (j+1)*sizeof(int) + j*size1;//changed from j+1 to j+2                                    //Check Index Block Definition
                     void *sortValue;
-                    memcpy(sortValue, indexData + sizeOfSortValueToPass, size1);                             //SortValue could be and int,char or float, so just void.
-                    //printf("SortValue: %s\n", (char*)sortValue);
-                    if(scanOpCodeHelper(value1, sortValue, type1)){                                                                            //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
-                        //printf("In for j < Max Records: %d ||", maxRecords);
+                    memcpy(sortValue, indexData + sizeOfSortValueToPass, size1);                                                                                    //SortValue could be and int,char or float, so just void.
+                    if(scanOpCodeHelper(value1, sortValue, type1)){                                                                                                 //scanOpCodeHelper is used to check if sortValue is larger or smaller than the value passed as argument.
                         //Moving down a level, making indexData equal to the new block's index data.
-                        //printf("moving down\n");
                         int lowerLevelFileDesc;
-                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + 2*sizeof(int) + j*(sizeof(int)+size1), sizeof(int));           //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
-                        printf("%d\n", lowerLevelFileDesc);
+                        memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + 2*sizeof(int) + j*(sizeof(int)+size1), sizeof(int));                                  //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
                         BF_UnpinBlock(curBlock);
                         if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
                             return -1;
@@ -250,13 +242,9 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     }
                 }
                 if(j==maxRecords){
-                    //printf("In for j == Max Records: %d ||", maxRecords);
                     //Moving down a level, making indexData equal to the new block's index data.
-                    //printf("moving down\n");
                     int lowerLevelFileDesc;
                     memcpy(&lowerLevelFileDesc,indexData + sizeof(char) + 2*sizeof(int) + j*(sizeof(int)+size1), sizeof(int));//changed from j to j+1                //lowerLevelFileDesc is used as a pointer to the next level of index blocks.
-                    //printf("%d |||| %d\n",  sizeof(char) + sizeof(int) + (2*j) * sizeof(int), lowerLevelFileDesc);
-                    //printf("%c%d%d\n", indexData[0], indexData[1], indexData[5]);
                     if (BF_GetBlock(fileDesc, lowerLevelFileDesc, curBlock)!=BF_OK) {
                         return -1;
                     }
@@ -265,12 +253,9 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
             }
             //INSERTING DATA TO NEW BLOCK.
             //changed: using size1, size2 instead of sizeof(varType)
-            if(indexData[0]=='d'){                                                                                      //No more index blocks, only data blocks.
+            if(indexData[0]=='d'){                                                                                                                                   //No more index blocks, only data blocks.
                 int curRecords;
-                //printf("%d %d\n", size1, size2);
                 memcpy(&curRecords,indexData+sizeof(char), sizeof(int));
-                //printf("In data, record %d\n", curRecords);
-                //printf("Total R %d\n", curRecords);
                 int currentBlockSize = sizeof(char) + 2*sizeof(int) + curRecords* size1 + curRecords* size2 + sizeof(int);
                 if((currentBlockSize + size1 + size2) <= BF_BLOCK_SIZE){
                     memcpy(indexData + sizeof(char) + 2*sizeof(int) + curRecords* size1 + curRecords* size2,value1,size1);
@@ -283,11 +268,9 @@ int AM_InsertEntry(int fileDesc, void *value1, void *value2) {
                     BF_UnpinBlock(curBlock);
                 }
                 else {
-                    //printf("overflow\n");
                     SplitBlock(value1, value2, indexData,fileDesc,size1,size2,type1);
                     BF_Block_SetDirty(curBlock);
                     BF_UnpinBlock(curBlock);
-                    //TODO - Split Block
                 }
                 return AME_OK;
             }
@@ -430,8 +413,8 @@ int SortBlock(char *blockData, int size1,char type1, int size2, int curRecords){
     void *suppValue1=malloc(size2);
     void *suppValue2=malloc(size2);
     //Basically BubbleSort
-    //keep in mind that when splitting, the smallest values are always the leftmost
-    //no need for different algorithms for index and data, only need to ignore the pointer to first block pointer in index blocks
+    //Keep in mind that when splitting, the smallest values are always the leftmost
+    //No need for different algorithms for index and data, only need to ignore the pointer to first block pointer in index blocks
     for(int j=0; j<curRecords-1;j++){                                                                                               //This for loop gets the first non-sorted block each time.
         memcpy(suppValue1,blockData + j*(size1+size2) + size1, size2);
         memcpy(sortValue1,blockData + j*(size1+size2), size1);
@@ -456,25 +439,24 @@ int SortBlock(char *blockData, int size1,char type1, int size2, int curRecords){
 }
 
 int AM_OpenIndexScan(int fileDesc, int op, void *value) {
-    printf("SCAN\n");
-    //check for valid fileDesc
+    //Check for valid fileDesc
     if (fileTable[fileDesc].fileName == NULL) {
-        return 1; //no open file in this position
+        return 1;                                                                                                                   //No open file in this position
     }
-    //allocate scan table position and begin searching
+    //Allocate scan table position and begin searching
     int i=0;
     int scanTablePos = -1;
-    BF_Block* curBlock; //block being parsed
+    BF_Block* curBlock;                                                                                                             //Block being parsed
     BF_Block_Init(&curBlock);
-    char type1, type2; //type of value1 and value2 of selected file respectively
-    int size1, size2; //sizes of value1 and value2 of selected file respectively
+    char type1, type2;                                                                                                              //Type of value1 and value2 of selected file respectively
+    int size1, size2;                                                                                                               //Sizes of value1 and value2 of selected file respectively
     int currentBlock;
     char* bData;
     for (;i<20;i++) {
         if (scanTable[i].scanFile == -1) {
             scanTablePos = i;
             scanTable[i].scanFile = fileDesc;
-            if (BF_GetBlock(fileDesc, 0, curBlock)!=BF_OK) { //get file info from block 0
+            if (BF_GetBlock(fileDesc, 0, curBlock)!=BF_OK) {                                                                        //Get file info from block 0
                 return -1;
             }
             bData = BF_Block_GetData(curBlock);
@@ -485,39 +467,35 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
             memcpy(&currentBlock, bData + sizeof(char) + sizeof(int) + sizeof(char) + sizeof(int), sizeof(int));
             scanTable[i].queryValue = value;
             scanTable[i].opcode = op;
-            printf("%c %d %c %d\n", type1, size1, type2, size2);
             BF_UnpinBlock(curBlock);
             break;
         }
     }
-    if (scanTablePos==-1) { //no space in scan table
+    if (scanTablePos==-1) {                                                                                                         //No space in scan table
         return scanTablePos;
     }
-    //we need to store current block to pass its value in scan struct later
-    int currentOffset = sizeof(char) + sizeof(int) + sizeof(int); //go past the index/data/father indicator and the total values
+    //We need to store current block to pass its value in scan struct later
+    int currentOffset = sizeof(char) + sizeof(int) + sizeof(int); //Go past the index/data/father indicator and the total values
     if (BF_GetBlock(fileDesc, currentBlock, curBlock)!=BF_OK) {
         return -1;
     }
     bData = BF_Block_GetData(curBlock);
-    /* explanation for the offsets below:
+    /* Explanation for the offsets below:
         Block format is 
         {index/data byte|int with # of delimValues|int to lower level block|sizeof(value1) sorting value|int to lower level block|etc...}
         In index loop we move forward one int, check the value and repeat until we have to move down a level
     */
-    printf("%d %d %hhx %d\n", fileDesc, currentBlock, bData[0], bData[1]);
     int valuesSearched=0;
-    //finds first element with the value given, or the last with lower value if no elements with that value
+    //Finds first element with the value given, or the last with lower value if no elements with that value
     while (bData[0]=='i') { //loops through index blocks
-        printf("CCC\n");
         int totalDelims;
         memcpy(&totalDelims, bData+sizeof(char), sizeof(int));
-        int lastPtrOffset = currentOffset; //offset of latest "pointer"
-        currentOffset += sizeof(int); //this pointer is now on next value to check
-        //move to lower level if we need less/different(where first shown is the smallest), otherwise check normally to find value equal with the value searched
+        int lastPtrOffset = currentOffset;                                                                                          //Offset of latest "pointer"
+        currentOffset += sizeof(int);                                                                                               //this pointer is now on next value to check
+        //Move to lower level if we need less/different(where first shown is the smallest), otherwise check normally to find value equal with the value searched
         if ((op==2 || op==3 || op==5) || valuesSearched>=totalDelims || scanOpCodeHelper(value, bData+currentOffset*sizeof(char), type1)) {
             int nextBlock;
             memcpy(&nextBlock, bData+lastPtrOffset, sizeof(int));
-            printf("NB %d\n", nextBlock);
             BF_UnpinBlock(curBlock);
             if (BF_GetBlock(fileDesc, nextBlock, curBlock)!=BF_OK) {
                 return -1;
@@ -528,39 +506,37 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
             valuesSearched=0;
         }
         else {
-            //still on the same block, move to next pointer
+            //Still on the same block, move to next pointer
             currentOffset += size1;
             valuesSearched++;
         }
-        printf("Scanning index...\n");
     }
     if (bData[0]!='d') {
         printf("ERROR: scan ended on non data block.\n");
         return 10;
     }
-    printf("In data block...\n");
-    if (op==2 || op==3 || op==5) { //it will already be on first data block from the above loop
+    if (op==2 || op==3 || op==5) {                                                                                                  //It will already be on first data block from the above loop
         scanTable[i].scanNextBlock = currentBlock;
         scanTable[i].scanNextOffset = currentOffset;
         BF_UnpinBlock(curBlock);
-        //when exiting from here, currentOffset shows the first value in first block, which can be <, =, > to value
+        //When exiting from here, currentOffset shows the first value in first block, which can be <, =, > to value
         return i;
     }
     int tempOffset = currentOffset;
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
     int curSearchedEntry=1;
-    while(1) { //moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
-        if (curSearchedEntry<=allBlockEntries) { //the entry we are going to see is a valid entry
+    while(1) {                                                                                                                      //Moves to a result that ensures >=, > and == will be correct, provided a check in findNextEntry
+        if (curSearchedEntry<=allBlockEntries) {                                                                                    //The entry we are going to see is a valid entry
             if (scanOpCodeHelper(bData+currentOffset, value, type1)) {
-                currentOffset += size1 + size2; //move to next entry if current is less than the searched
+                currentOffset += size1 + size2;                                                                                     //Move to next entry if current is less than the searched
             }
             else break;
         }
-        else { //no more entries in this block, means the value we store is the first of the next block
+        else {                                                                                                                      //No more entries in this block, means the value we store is the first of the next block
             int nextBlock;
             memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
-            //no need to get data, we only need the block values
+            //No need to get data, we only need the block values
             currentBlock = nextBlock;
             currentOffset = sizeof(char) + sizeof(int) + sizeof(int);
             //REMINDER: IF ON LAST DATA BLOCK, WRITE THE NEXTBLOCK VARIABLE SPACE WITH -1, AND CHECK FROM FINDNEXTENTRY FOR THIS
@@ -569,18 +545,17 @@ int AM_OpenIndexScan(int fileDesc, int op, void *value) {
         curSearchedEntry++;
     }
     BF_UnpinBlock(curBlock);
-    //when exiting, currentOffset has one of the following values:
+    //When exiting, currentOffset has one of the following values:
     //-the first entry with value1==value
     //-the first entry with value1>value, either in same or next data block
     scanTable[i].scanNextBlock = currentBlock;
     scanTable[i].scanNextOffset = currentOffset;
-    printf("Ended with scan data: %d %d %d %s %d\n", i, scanTable[i].scanNextBlock, scanTable[i].scanNextOffset, scanTable[i].queryValue, scanTable[i].opcode);
     return i;
 }
 
 int scanOpCodeHelper(void* value1, void* value2, char type) {
-    //returns true when it finds a greater value as delimiter than the one we search for\
-    //aka value1 < value2
+    //Returns true when it finds a greater value as delimiter than the one we search for\
+    //AKA value1 < value2
     void *delimValue;
     switch(type) {
         case 'c':
@@ -608,12 +583,12 @@ int scanOpCodeHelper(void* value1, void* value2, char type) {
 
 
 void *AM_FindNextEntry(int scanDesc) {
-    BF_Block* curBlock; //block being parsed
+    BF_Block* curBlock;                                                                                                             //Block being parsed
     BF_Block_Init(&curBlock);
-    char type1, type2; //type of value1 and value2 of selected file respectively
-    int size1, size2; //sizes of value1 and value2 of selected file respectively
+    char type1, type2;                                                                                                              //Type of value1 and value2 of selected file respectively
+    int size1, size2;                                                                                                               //Sizes of value1 and value2 of selected file respectively
     char* bData;
-	if (BF_GetBlock(scanTable[scanDesc].scanFile, 0, curBlock)!=BF_OK) { //get file info from block 0
+	if (BF_GetBlock(scanTable[scanDesc].scanFile, 0, curBlock)!=BF_OK) {                                                            //Get file info from block 0
         return NULL;
     }
     bData = BF_Block_GetData(curBlock);
@@ -621,33 +596,33 @@ void *AM_FindNextEntry(int scanDesc) {
     memcpy(&size1, bData + sizeof(char), sizeof(int));
     memcpy(&type2, bData + sizeof(char) + sizeof(int), sizeof(char));
     memcpy(&size2, bData + sizeof(char) + sizeof(int) + sizeof(char), sizeof(int));
-    //get block parsed for next result
+    //Get block parsed for next result
     BF_UnpinBlock(curBlock);
-    //scanNextBlock could be -1, meaning no more entries
+    //ScanNextBlock could be -1, meaning no more entries
     if (BF_GetBlock(scanTable[scanDesc].scanFile, scanTable[scanDesc].scanNextBlock, curBlock)!=BF_OK) {
         return NULL;
     }
     bData = BF_Block_GetData(curBlock);
     int allBlockEntries;
     memcpy(&allBlockEntries, bData+sizeof(char), sizeof(int));
-    //check if we are in end of current block data
+    //Check if we are in end of current block data
     if (((scanTable[scanDesc].scanNextOffset - sizeof(char) - sizeof(int)- sizeof(int))/(size1+size2)+1)>allBlockEntries) {
         BF_UnpinBlock(curBlock);
         int nextBlock;
         memcpy(&nextBlock, bData + BF_BLOCK_SIZE-sizeof(int), sizeof(int));
         scanTable[scanDesc].scanNextBlock = nextBlock;
-        scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int) + sizeof(int); //updated for father.
-        //fixing scantable data and recursing for next block
+        scanTable[scanDesc].scanNextOffset = sizeof(char) + sizeof(int) + sizeof(int);                                              //Updated for father.
+        //Fixing scantable data and recursing for next block
         AM_FindNextEntry(scanDesc);
     }
-    //check for EOF
+    //Check for EOF
     if (scanTable[scanDesc].scanNextBlock==-1) {
         AM_errno = AME_EOF;
         return NULL;
     }
     if (scanTable[scanDesc].opcode==1) { //=
-        //as explained in openScanFile, the offset is initialized as first equal or a bigger element
-        //we only need to check if we reached a bigger element
+        //As explained in openScanFile, the offset is initialized as first equal or a bigger element
+        //We only need to check if we reached a bigger element
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1)) {
             AM_errno = AME_EOF;
             BF_UnpinBlock(curBlock);
@@ -659,7 +634,7 @@ void *AM_FindNextEntry(int scanDesc) {
         }
     }
     if (scanTable[scanDesc].opcode==2) { //!=
-        //similar to the >, we print all elements and recurse through the equals
+        //Similar to the >, we print all elements and recurse through the equals
         if (scanOpCodeHelper(scanTable[scanDesc].queryValue, bData+scanTable[scanDesc].scanNextOffset, type1) || scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
             scanTable[scanDesc].scanNextOffset += size1 + size2;
             return bData + scanTable[scanDesc].scanNextOffset - size2;
@@ -669,9 +644,9 @@ void *AM_FindNextEntry(int scanDesc) {
             return AM_FindNextEntry(scanDesc); //pray to god this works...
         }
     }
-    else if (scanTable[scanDesc].opcode==3) { //<
+    else if (scanTable[scanDesc].opcode==3) {
         if (scanOpCodeHelper(bData+scanTable[scanDesc].scanNextOffset, scanTable[scanDesc].queryValue, type1)) {
-            scanTable[scanDesc].scanNextOffset += size1 + size2; //dont have to check for end of block, this is done when entering
+            scanTable[scanDesc].scanNextOffset += size1 + size2;                                                                    //Don't have to check for end of block, this is done when entering
             return bData + scanTable[scanDesc].scanNextOffset - size2;
         }
         else {
@@ -705,9 +680,9 @@ void *AM_FindNextEntry(int scanDesc) {
         }
     }
     else if (scanTable[scanDesc].opcode==6) { //>=
-        //the scan opened has either equal or > elements to queryvalue (stated in openScanFile)
-        //eof is tested above
-        //all cases are correct
+        //The scan opened has either equal or > elements to queryvalue (stated in openScanFile)
+        //EOF is tested above
+        //All cases are correct
         scanTable[scanDesc].scanNextOffset += size1 + size2;
         return bData + scanTable[scanDesc].scanNextOffset - size2;
     }
@@ -715,7 +690,7 @@ void *AM_FindNextEntry(int scanDesc) {
 
 
 int AM_CloseIndexScan(int scanDesc) {
-    //unpin open block used to return entries
+    //Unpin open block used to return entries
     scanTable[scanDesc].scanFile = -1;
     scanTable[scanDesc].scanNextBlock = -1;
     scanTable[scanDesc].scanNextOffset = -1;
